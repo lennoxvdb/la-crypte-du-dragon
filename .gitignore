@@ -5,6 +5,7 @@
 !/screenshots/
 !/dnd3d/
 !/apk/
+!/.github/
 
 # dépendances et fichiers générés
 /apk/node_modules/
