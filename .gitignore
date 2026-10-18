@@ -1,0 +1,18 @@
+# Liste blanche : ce dossier contient d'autres projets, seul le jeu est publié.
+/*
+!/.gitignore
+!/README.md
+!/screenshots/
+!/dnd3d/
+!/apk/
+
+# dépendances et fichiers générés
+/apk/node_modules/
+/apk/package-lock.json
+/apk/android/.gradle/
+/apk/android/.idea/
+/apk/android/build/
+/apk/android/app/build/
+/apk/android/local.properties
+/apk/android/app/src/main/assets/www/
+*.apk

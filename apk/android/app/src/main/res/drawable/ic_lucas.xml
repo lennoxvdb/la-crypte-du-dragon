@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucas : cube bleu, mèche brune, gros yeux, joues roses et crotte de nez -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- mèche -->
+    <path android:fillColor="#6B3E1F" android:pathData="M46,34 L54,18 L62,34 Z" />
+    <!-- corps -->
+    <path android:fillColor="#2F6FE4" android:pathData="M38,32 H70 A8,8 0 0 1 78,40 V72 A8,8 0 0 1 70,80 H38 A8,8 0 0 1 30,72 V40 A8,8 0 0 1 38,32 Z" />
+    <!-- reflet -->
+    <path android:fillColor="#5B93FF" android:pathData="M40,35 H68 A3,3 0 0 1 71,38 V40 A3,3 0 0 1 68,43 H40 A3,3 0 0 1 37,40 V38 A3,3 0 0 1 40,35 Z" />
+    <!-- yeux -->
+    <path android:fillColor="#FFFFFF" android:pathData="M45,52 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M63,52 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <path android:fillColor="#111111" android:pathData="M46,53 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#111111" android:pathData="M64,53 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <!-- joues -->
+    <path android:fillColor="#FF9AA2" android:pathData="M37,63 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#FF9AA2" android:pathData="M71,63 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <!-- bouche -->
+    <path android:fillColor="#7A1F2B" android:pathData="M49,66 H59 A2,2 0 0 1 61,68 V69 A2,2 0 0 1 59,71 H49 A2,2 0 0 1 47,69 V68 A2,2 0 0 1 49,66 Z" />
+    <!-- crotte de nez -->
+    <path android:fillColor="#8FD14F" android:pathData="M54,61 m-2,0 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0" />
+</vector>
