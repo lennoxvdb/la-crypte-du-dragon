@@ -10,6 +10,12 @@ const src = path.resolve(here, '../dnd3d');
 const out = path.resolve(here, 'android/app/src/main/assets/www');
 fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
 
+// 0. la version vérifiée par le jeu doit être celle de l'APK (sinon la mise à jour boucle)
+const gradle = fs.readFileSync(path.join(here, 'android/app/build.gradle'), 'utf8');
+const apkVersion = gradle.match(/versionName '([^']+)'/)[1];
+const jsVersion = fs.readFileSync(path.join(src, 'js/main.js'), 'utf8').match(/const APP_VERSION = '([^']+)'/)[1];
+if (apkVersion !== jsVersion) throw new Error(`versions différentes : build.gradle ${apkVersion}, main.js ${jsVersion}`);
+
 // 1. un seul script, Three.js inclus
 await esbuild.build({
   entryPoints: [path.join(src, 'js/main.js')],

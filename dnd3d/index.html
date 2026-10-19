@@ -216,6 +216,11 @@
     .controls { font-size: 13px; padding: 12px; }
     #banner { top: 16%; }
   }
+  .upd { margin-top: 18px; display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 18px; border: 1px solid var(--gold); border-radius: 4px;
+    background: linear-gradient(180deg, rgba(70,44,14,0.95), rgba(30,18,8,0.95)); font-family: 'Cinzel', serif; color: #ffe2a0; font-size: 16px;
+    box-shadow: 0 0 24px rgba(255,170,60,0.35); animation: updPop .45s cubic-bezier(.2, 1.6, .5, 1); }
+  @keyframes updPop { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  #version { position: fixed; right: 10px; bottom: 6px; font-size: 12px; color: rgba(220,200,160,0.45); z-index: 21; pointer-events: none; }
   .dead-title { font-family: 'Cinzel Decorative', serif; font-size: clamp(40px, 7vw, 86px); color: #b3161b; text-shadow: 0 0 30px rgba(200,20,20,0.6), 0 4px 0 #000; margin: 0; text-align: center; }
 </style>
 </head>
@@ -283,6 +288,7 @@
     <button class="btn" id="btnControls">Commandes</button>
     <button class="btn small" id="btnQuality">Qualité graphique : Ultra</button>
   </div>
+  <div class="upd hidden" id="upd"><span id="updTxt">🎁 Nouvelle version !</span><button class="btn small" id="updBtn">Mettre à jour</button></div>
   <div class="hint">Descendez cinq étages de donjon, lancez les dés du destin et terrassez Pyraxis, le Fléau Écarlate.<br><span id="best"></span><br><small style="opacity:.6">Personnages animés : KayKit par Kay Lousberg (CC0)</small></div>
 </div>
 
@@ -350,6 +356,7 @@
   <div class="section-title" style="font-size:28px">Cliquez pour jouer</div>
 </div>
 
+<div id="version"></div>
 <div id="fade"></div>
 <noscript>Ce jeu nécessite JavaScript.</noscript>
 

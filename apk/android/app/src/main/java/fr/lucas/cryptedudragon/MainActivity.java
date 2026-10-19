@@ -1,6 +1,8 @@
 package fr.lucas.cryptedudragon;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -38,6 +40,19 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return loader.shouldInterceptRequest(request.getUrl());
+            }
+
+            // liens externes (téléchargement d'une mise à jour…) : ouverts dans le navigateur du téléphone
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                Uri u = request.getUrl();
+                if ("appassets.androidplatform.net".equals(u.getHost())) return false;
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, u));
+                } catch (Exception e) {
+                    // aucune appli pour ouvrir le lien : on ignore
+                }
+                return true;
             }
         });
         setContentView(web);

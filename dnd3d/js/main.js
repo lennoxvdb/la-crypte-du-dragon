@@ -504,6 +504,41 @@ function setupTouch() {
   touchEl.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
+// ---------------------------------------------------------------- Mise à jour (appli Android)
+// Doit rester identique à versionName dans apk/android/app/build.gradle (vérifié par build-web.mjs).
+const APP_VERSION = '1.1';
+const REPO = 'lennoxvdb/la-crypte-du-dragon';
+let updateUrl = null;
+function isNewer(a, b) {
+  const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+async function checkUpdate() {
+  if (location.hostname !== 'appassets.androidplatform.net') return; // seulement dans l'appli (le site est toujours à jour)
+  try {
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { signal: ctl.signal, headers: { Accept: 'application/vnd.github+json' } });
+    if (!r.ok) return;
+    const rel = await r.json();
+    const v = String(rel.tag_name || '').replace(/^v/, '');
+    const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name));
+    if (!apk || !isNewer(v, APP_VERSION)) return;
+    updateUrl = apk.browser_download_url;
+    document.getElementById('updTxt').textContent = `🎁 Nouvelle version ${v} disponible !`;
+    document.getElementById('upd').classList.remove('hidden');
+  } catch { /* pas de réseau : on réessaiera au prochain lancement */ }
+}
+function doUpdate() {
+  if (!updateUrl) return;
+  G.ui.toast('Téléchargement… ouvre le fichier pour installer');
+  location.href = updateUrl; // l'appli Android l'ouvre dans le navigateur du téléphone
+}
+
 // bouton « retour » d'Android (appelé par l'appli native)
 window.__back = () => {
   if (G.state === 'playing') { releaseTouch(); pause(); return 'paused'; }
@@ -569,6 +604,8 @@ function setupInput() {
   $('btnQuality').textContent = `Qualité graphique : ${G.quality === 'high' ? 'Ultra' : 'Performance'}`;
   $('btnQuality').onclick = () => { setPref('quality', G.quality === 'high' ? 'low' : 'high'); location.reload(); };
   $('btnResume').onclick = resume;
+  $('updBtn').onclick = doUpdate;
+  $('version').textContent = 'v' + APP_VERSION;
   $('btnQuit').onclick = () => { G.ui.hide('pause'); backToTitle(); };
   $('btnRetry').onclick = () => { const c = G.player.clsKey; G.ui.hideAllScreens(); startGame(c); };
   $('btnMenu1').onclick = backToTitle;
@@ -787,6 +824,7 @@ async function boot() {
     G.state = 'title';
   }
   requestAnimationFrame(frame);
+  checkUpdate();
 }
 
 boot().catch((err) => {

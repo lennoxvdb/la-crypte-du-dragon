@@ -58,6 +58,12 @@ apk/            construction de l'APK Android
 
 Servir le dossier `dnd3d/` avec n'importe quel serveur web (par exemple XAMPP), puis ouvrir `index.html`.
 
+### Mises à jour de l'appli
+
+Au démarrage, l'appli Android regarde s'il existe une version plus récente dans les [Releases](https://github.com/lennoxvdb/la-crypte-du-dragon/releases). Si oui, un bouton **Mettre à jour** apparaît sur l'écran titre et télécharge le nouvel APK : il reste à l'ouvrir pour l'installer (Android ne permet pas d'installer sans confirmation). Sans internet, le jeu démarre normalement.
+
+Pour publier une version : augmenter `versionCode` et `versionName` dans `apk/android/app/build.gradle`, mettre la même valeur dans `APP_VERSION` (`dnd3d/js/main.js`), construire l'APK et créer une release `vX.Y` avec l'APK en pièce jointe.
+
 ### Construire l'APK
 
 Prérequis : Node.js, JDK 17+, SDK Android (API 36).
