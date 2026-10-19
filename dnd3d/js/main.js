@@ -85,7 +85,7 @@ function makeEnvScene() {
 function setupRenderer() {
   const hi = G.quality === 'high';
   renderer = G.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, hi ? 1.5 : 1));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, hi ? 1.5 : IS_TOUCH ? 1.25 : 1));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.4;
@@ -399,6 +399,7 @@ function resume() {
   G.state = 'playing';
   lockPointer();
 }
+G.toggleSheet = () => toggleSheet();
 function toggleSheet() {
   if (G.state === 'playing') {
     G.state = 'sheet';
@@ -701,7 +702,7 @@ function adaptResolution(raw) {
   if (perf.acc < 1500) return;
   const avg = perf.acc / perf.n;
   perf.acc = perf.n = 0;
-  const max = Math.min(devicePixelRatio, G.quality === 'high' ? 1.5 : 1);
+  const max = Math.min(devicePixelRatio, G.quality === 'high' || IS_TOUCH ? 1.5 : 1);
   let pr = renderer.getPixelRatio();
   if (avg > 19.5 && pr > 0.55) { pr = Math.max(0.55, pr - (avg > 28 ? 0.2 : 0.1)); perf.good = 0; }
   else if (avg < 17.6 && pr < max) { if (++perf.good >= 3) { pr = Math.min(max, pr + 0.05); perf.good = 0; } }

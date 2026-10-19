@@ -32,7 +32,7 @@ export class UI {
     const ab = this.el.abilities;
     ab.innerHTML = '';
     this.slots = [];
-    const defs = [...d.slots, { key: 'Espace', icon: P.clsKey === 'magicien' ? '💨' : '🌀', name: P.clsKey === 'magicien' ? 'Foulée' : 'Roulade' }, { key: 'R', icon: '🧪', name: 'Potion' }];
+    const defs = [...d.slots, { key: 'Espace', icon: P.clsKey === 'magicien' ? '💨' : '🤸', name: P.clsKey === 'magicien' ? 'Foulée' : 'Roulade' }, { key: 'R', icon: '🧪', name: 'Potion' }];
     for (const s of defs) {
       const div = document.createElement('div');
       div.className = 'slot';
@@ -48,7 +48,7 @@ export class UI {
       this.tb.atk.querySelector('span').textContent = d.slots[0].icon;
       this.tb.sec.querySelector('span').textContent = d.slots[1].icon;
       this.tb.spe.querySelector('span').textContent = d.slots[2].icon;
-      this.tb.dodge.querySelector('span').textContent = P.clsKey === 'magicien' ? '💨' : '🌀';
+      this.tb.dodge.querySelector('span').textContent = P.clsKey === 'magicien' ? '💨' : '🤸';
     }
   }
 
@@ -319,7 +319,12 @@ export class UI {
         <div><h4>Objets magiques</h4><ul>${items}</ul><h4>Dons</h4><ul>${boons}</ul>
           <h4>Inventaire</h4><ul><li>🧪 <b>${P.potions}</b> potion(s) de soins</li><li>💰 <b>${P.gold}</b> pièces d’or</li></ul></div>
       </div>
-      <div style="text-align:center;margin-top:16px;color:#8f7d5d;font-style:italic">Appuyez sur Tab pour fermer</div>`;
+      <div style="text-align:center;margin-top:16px">${G.touch
+        ? '<button class="btn small" id="sheetClose">Fermer</button>'
+        : '<span style="color:#8f7d5d;font-style:italic">Appuyez sur Tab (ou cliquez) pour fermer</span>'}</div>`;
+    // un toucher / clic n'importe où sur la fiche la ferme
+    const opened = performance.now();
+    $('sheet').onclick = () => { if (performance.now() - opened > 400 && G.toggleSheet) G.toggleSheet(); };
     this.show('sheet');
   }
 
