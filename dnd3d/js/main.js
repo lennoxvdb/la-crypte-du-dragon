@@ -15,6 +15,7 @@ import { updateProjectiles, clearProjectiles } from './combat.js';
 import { AudioSys } from './audio.js';
 import { UI } from './ui.js';
 import { animateDragon } from './models.js';
+import { loadAssets } from './assets.js';
 import { clamp, damp, rnd, rndInt, lerp, nextFrame, smoothstep } from './util.js';
 
 const V = THREE.Vector3;
@@ -331,6 +332,7 @@ G.summonMinions = (n) => {
       const e = new Enemy('squelette', x, z, 4);
       e.aware = true;
       e.state = 'chase';
+      if (e.anim) { e.anim.play('Skeletons_Awaken_Floor', { loop: false, fade: 0 }); e.spawnT = 1.6; }
       G.enemies.push(e);
       G.fx.magic(new V(x, 1, z), 50, [2, 0.4, 2.5]);
       G.fx.norm.emit({ x, y: 0.5, z, count: 20, spread: 0.8, vy: 1.5, vel: 1, life: 1.2, size: 0.8, size1: 1.8, color: [0.15, 0.05, 0.2], alpha: 0.6 });
@@ -763,7 +765,13 @@ async function boot() {
   setLoad(0.2, 'Taille des pierres du donjon…');
   await nextFrame();
   initDungeonAssets();
-  setLoad(0.7, 'Réveil du dragon…');
+  setLoad(0.55, 'Réveil des héros…');
+  try {
+    await loadAssets((p) => setLoad(0.55 + p * 0.2));
+  } catch (err) {
+    console.warn('Modèles animés indisponibles, personnages procéduraux utilisés.', err);
+  }
+  setLoad(0.78, 'Réveil du dragon…');
   await nextFrame();
   buildTitleScene();
   updateTitle(0.016);

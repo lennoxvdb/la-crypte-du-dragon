@@ -17,7 +17,8 @@ Un jeu de rôle d'action en 3D dans le navigateur, inspiré de *Donjons & Dragon
 - **5 étages générés au hasard** : caves, catacombes, forge des gobelins, sanctuaire profané, puis l'antre du dragon.
 - **Monstres** : gobelins, squelettes, squelettes archers, cubes gélatineux, ogres, et un dragon rouge en deux phases (morsure, griffes, queue, souffle de feu, pluie de météores, invocations).
 - **Progression** : expérience, niveaux, dons à choisir, objets magiques dans les coffres, potions, fontaines sacrées, pièges.
-- **Graphismes 100 % procéduraux** : aucun fichier image ou modèle 3D. Textures, personnages et sons sont générés par le code (Three.js + WebAudio). Éclairage dynamique, ombres, bloom, étalonnage des couleurs.
+- **Personnages animés** : Chevalier, Mage, Roublard et squelettes issus des packs [KayKit](https://kaylousberg.com/) de Kay Lousberg (licence CC0), avec plus de 20 animations chacun.
+- **Le reste est procédural** : donjon, textures, Lucas, gobelins, ogres, dragon et sons sont générés par le code (Three.js + WebAudio). Éclairage dynamique, ombres, bloom, étalonnage des couleurs.
 
 | Combat | Lucas | Sur téléphone |
 |---|---|---|
@@ -38,12 +39,18 @@ Un jeu de rôle d'action en 3D dans le navigateur, inspiré de *Donjons & Dragon
 | E | ✋ | interagir |
 | Tab / M / Échap | 📜 / 🗺️ / ⏸ | fiche, carte, pause |
 
+## Crédits
+
+- Modèles et animations des héros et des squelettes : **KayKit — Adventurers & Skeletons Character Packs** par [Kay Lousberg](https://kaylousberg.com/), licence [CC0](http://creativecommons.org/publicdomain/zero/1.0/). Le script `apk/optimize-models.mjs` en garde uniquement les animations utilisées.
+- Moteur 3D : [Three.js](https://threejs.org/).
+
 ## Structure
 
 ```
 dnd3d/          le jeu web (index.html + modules JS)
 apk/            construction de l'APK Android
-  build-web.mjs   assemble le jeu hors-ligne (esbuild + Three.js + polices)
+  build-web.mjs        assemble le jeu hors-ligne (esbuild + Three.js + polices + modèles)
+  optimize-models.mjs  allège les modèles KayKit (dnd3d/models/src -> dnd3d/models)
   android/        projet Android (WebView plein écran)
 ```
 

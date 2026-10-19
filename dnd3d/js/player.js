@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { G } from './state.js';
 import { buildHero, poseHumanoid, animateCape } from './models.js';
+import { hasAssets, createCharacter, weaponMarkers } from './assets.js';
 import { Trail, Telegraph } from './fx.js';
 import { Projectile, playerAttack, explode } from './combat.js';
 import { clamp, damp, dampAngle, roll, die, mod, fmtMod, rnd, lerp } from './util.js';
@@ -130,6 +131,27 @@ export const ITEMS = [
   { id: 'periapt', name: 'Périapte de cicatrisation', icon: '🔆', desc: 'Régénère 1 PV toutes les 3 s', apply: (p) => { p.bonus.regen += 0.33; } },
 ];
 
+// ---------------------------------------------------------------- Modèles animés des héros (KayKit, CC0)
+const GLB_HEROES = {
+  guerrier: { model: 'Knight', main: '1H_Sword', off: null, hide: ['1H_Sword_Offhand', 'Badge_Shield', 'Rectangle_Shield', 'Spike_Shield', '2H_Sword'],
+    attacks: ['1H_Melee_Attack_Slice_Diagonal', '1H_Melee_Attack_Slice_Horizontal', '1H_Melee_Attack_Chop'] },
+  magicien: { model: 'Mage', main: '2H_Staff', off: null, hide: ['Spellbook', 'Spellbook_open', '1H_Wand'], attacks: [] },
+  roublard: { model: 'Rogue_Hooded', main: 'Knife', off: 'Knife_Offhand', hide: ['1H_Crossbow', '2H_Crossbow', 'Throwable'],
+    attacks: ['Dualwield_Melee_Attack_Slice', 'Dualwield_Melee_Attack_Stab', 'Dualwield_Melee_Attack_Slice', 'Dualwield_Melee_Attack_Chop'] },
+};
+
+function buildGlbHero(cls) {
+  const cfg = GLB_HEROES[cls];
+  const C = createCharacter(cfg.model, { anims: 'hero', hide: cfg.hide, height: 1.9 });
+  const weapons = {};
+  const main = C.bone(cfg.main);
+  if (main) weapons.main = weaponMarkers(main);
+  if (cfg.off) { const off = C.bone(cfg.off); if (off) weapons.off = weaponMarkers(off); }
+  const R = { root: C.root, handR: C.bone('hand.r'), handL: C.bone('hand.l'), glb: true };
+  const castPoint = weapons.main ? weapons.main.tip : R.handR;
+  return { R, weapons, cape: null, castPoint, anim: C.anim, cfg };
+}
+
 // ---------------------------------------------------------------- Joueur
 const _v = new V(), _dir = new V(), _a = new V(), _b = new V();
 
@@ -181,7 +203,7 @@ export class Player {
     this.regenAcc = 0;
     this.lastStep = 0;
     this.rollDir = new V();
-    this.model = buildHero(clsKey);
+    this.model = hasAssets() && GLB_HEROES[clsKey] ? buildGlbHero(clsKey) : buildHero(clsKey);
     this.R = this.model.R;
     G.scene.add(this.R.root);
     const tc = clsKey === 'magicien' ? [1.4, 0.6, 0.15] : [0.85, 0.9, 1.15];
@@ -458,6 +480,7 @@ export class Player {
     if (this.combo >= list.length) this.combo = 0;
     const c = list[this.combo];
     this.curAtk = c;
+    this.atkIdx = this.combo;
     this.state = 'attack';
     this.stateT = 0;
     this.stateDur = c.dur;
@@ -920,7 +943,48 @@ export class Player {
   }
 
   // ---------------------------------------------------------------- Animation
+  // héros animé (modèle KayKit) : choix du clip selon l'état
+  animateGlb(dt) {
+    const A = this.model.anim, cfg = this.model.cfg;
+    const t = this.stateDur ? clamp(this.stateT / this.stateDur, 0, 1) : 0;
+    const key = this.state + ':' + Math.round((G.time - this.stateT) * 100);
+    const fit = (name, dur) => A.duration(name) / Math.max(0.1, dur);
+    switch (this.state) {
+      case 'dead': A.play('Death_A', { loop: false, fade: 0.2 }); break;
+      case 'roll': A.play('Dodge_Forward', { loop: false, fade: 0.06, speed: fit('Dodge_Forward', this.stateDur), key }); break;
+      case 'blink': A.play('Spellcast_Raise', { loop: false, fade: 0.05, speed: 2, key }); break;
+      case 'attack': {
+        const name = cfg.attacks[this.atkIdx % cfg.attacks.length];
+        A.play(name, { loop: false, fade: 0.06, speed: fit(name, this.stateDur) * 0.95, key });
+        break;
+      }
+      case 'cast': {
+        const name = this.castKind === 'fireball' ? 'Spellcast_Long' : this.castKind === 'throw' ? 'Throw' : 'Spellcast_Shoot';
+        A.play(name, { loop: false, fade: 0.06, speed: fit(name, this.stateDur), key });
+        break;
+      }
+      case 'special': A.play('1H_Melee_Attack_Slice_Horizontal', { loop: true, fade: 0.08, speed: 2.2 }); break;
+      case 'drink': A.play('Use_Item', { loop: false, fade: 0.1, speed: fit('Use_Item', this.stateDur), key }); break;
+      case 'hurt': A.play('Hit_A', { loop: false, fade: 0.05, speed: fit('Hit_A', Math.max(0.3, this.stateDur)), key }); break;
+      default:
+        if (this.blocking) A.play('Blocking', { fade: 0.1 });
+        else if (this.speedNow > 5) A.play('Running_A', { fade: 0.2, speed: this.speedNow / 6.5 });
+        else if (this.speedNow > 0.4) A.play('Walking_A', { fade: 0.2, speed: Math.max(0.6, this.speedNow / 2.6) });
+        else A.play('Idle', { fade: 0.25 });
+    }
+    A.update(dt);
+    void t;
+    const R = this.R;
+    R.root.position.copy(this.pos);
+    R.root.rotation.y = this.yaw + this.spinYaw;
+    const W = this.model.weapons;
+    R.root.updateMatrixWorld(true);
+    if (W.main && W.main.tip) this.trail.update(dt, W.main.base.getWorldPosition(_a), W.main.tip.getWorldPosition(_b));
+    if (this.trail2 && W.off) this.trail2.update(dt, W.off.base.getWorldPosition(_a), W.off.tip.getWorldPosition(_b));
+  }
+
   animate(dt) {
+    if (this.R.glb) return this.animateGlb(dt);
     const R = this.R, P = this.pose;
     P.walk = this.walkPhase;
     P.amt = clamp(this.speedNow / 6.2, 0, 1.3);

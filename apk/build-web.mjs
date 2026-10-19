@@ -22,6 +22,10 @@ await esbuild.build({
   logLevel: 'warning',
 });
 
+// 1b. modèles 3D animés
+fs.mkdirSync(path.join(out, 'models'), { recursive: true });
+for (const f of fs.readdirSync(path.join(src, 'models'))) if (f.endsWith('.glb')) fs.copyFileSync(path.join(src, 'models', f), path.join(out, 'models', f));
+
 // 2. polices Google embarquées
 const FONT_URL = 'https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap';
 let css = await (await fetch(FONT_URL, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36' } })).text();

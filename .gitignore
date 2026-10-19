@@ -16,4 +16,5 @@
 /apk/android/app/build/
 /apk/android/local.properties
 /apk/android/app/src/main/assets/www/
+/dnd3d/models/src/
 *.apk

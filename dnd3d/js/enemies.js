@@ -4,6 +4,7 @@ import { G } from './state.js';
 import { buildSkeleton, buildGoblin, buildOgre, buildCube, buildDragon, poseHumanoid, animateDragon } from './models.js';
 import { Projectile, explode } from './combat.js';
 import { Telegraph } from './fx.js';
+import { hasAssets, createCharacter } from './assets.js';
 import { roll, rnd, rndInt, clamp, damp, dampAngle, wrapAngle, lerp } from './util.js';
 
 const V = THREE.Vector3;
@@ -21,6 +22,17 @@ export const ENEMY_DEFS = {
   ogre: { name: 'Ogre', build: buildOgre, hp: [8, 10, 20], ac: 11, atk: 6, dmg: [2, 8, 4], speed: 3.4, radius: 0.85, height: 3.0, reach: 3.1,
     windup: 0.9, recover: 1.05, cd: [1.1, 2.0], xp: 220, kind: 'flesh', save: 2, sight: 16, arc: 0.75, attack: 'overhead', poise: true, telegraph: true },
 };
+
+// modèles animés KayKit (CC0) pour les squelettes
+function glbSkeleton(type) {
+  if (type === 'archer') {
+    return createCharacter('Skeleton_Rogue', { anims: 'skeleton', height: 1.85, weapons: [{ model: 'Skeleton_Crossbow', bone: 'handslot.r' }] });
+  }
+  const minion = type === 'minion' || Math.random() < 0.3;
+  const weapons = [{ model: 'Skeleton_Blade', bone: 'handslot.r' }];
+  if (!minion && Math.random() < 0.6) weapons.push({ model: 'Skeleton_Shield_Small_A', bone: 'handslot.l' });
+  return createCharacter(minion ? 'Skeleton_Minion' : 'Skeleton_Warrior', { anims: 'skeleton', height: minion ? 1.7 : 1.9, weapons });
+}
 
 // ---------------------------------------------------------------- Ennemi de base
 export class Enemy {
@@ -61,9 +73,11 @@ export class Enemy {
     this.walkPhase = rnd(0, 6);
     this.deathT = 0;
     this.flowPt = new V();
-    const M = (this.model = d.build());
-    this.R = M.R || null;
-    this.root = M.R ? M.R.root : M.root;
+    const useGlb = hasAssets() && (type === 'squelette' || type === 'archer');
+    const M = (this.model = useGlb ? glbSkeleton(type) : d.build());
+    this.anim = useGlb ? M.anim : null;
+    this.R = useGlb ? null : M.R || null;
+    this.root = useGlb ? M.root : M.R ? M.R.root : M.root;
     this.root.position.copy(this.pos);
     G.scene.add(this.root);
     // matériaux pour le flash blanc
@@ -154,7 +168,12 @@ export class Enemy {
     // butin
     if (Math.random() < 0.65) G.spawnPickup('gold', this.pos.x, this.pos.z, rndInt(3, 9) * G.floor);
     if (Math.random() < 0.09) G.spawnPickup('potion', this.pos.x + 0.4, this.pos.z + 0.3);
-    if (this.kind === 'bone') {
+    if (this.kind === 'bone' && this.anim) {
+      // effondrement animé, puis le squelette s'enfonce dans le sol
+      this.anim.play('Death_C_Skeletons', { loop: false, fade: 0.1 });
+      G.fx.bones(_a.set(this.pos.x, 1.2, this.pos.z), 14);
+      G.audio.play('collapse', this.pos);
+    } else if (this.kind === 'bone') {
       G.fx.shatter(this.root, dir);
       G.fx.bones(_a.set(this.pos.x, 1.2, this.pos.z), 20);
       G.audio.play('collapse', this.pos);
@@ -187,6 +206,15 @@ export class Enemy {
     this.sneakCD -= dt;
     this.setFlash();
     if (!this.alive) { this.deadUpdate(dt); return; }
+    if (this.spawnT > 0) {
+      // squelette qui surgit du sol (invocation)
+      this.spawnT -= dt;
+      this.anim && this.anim.update(dt);
+      this.root.position.set(this.pos.x, 0, this.pos.z);
+      this.root.rotation.y = Math.atan2(P.pos.x - this.pos.x, P.pos.z - this.pos.z);
+      this.yaw = this.root.rotation.y;
+      return;
+    }
     this.stateT += dt;
     this.cooldown -= dt;
     if (this.alertSoon > 0) { this.alertSoon -= dt; if (this.alertSoon <= 0) this.alert(); }
@@ -372,6 +400,12 @@ export class Enemy {
   deadUpdate(dt) {
     this.deathT += dt;
     if (this.removed) return;
+    if (this.anim) {
+      this.anim.update(dt);
+      if (this.deathT > 2.4) this.root.position.y -= dt * 0.5;
+      if (this.deathT > 4.5) { G.scene.remove(this.root); this.removed = true; }
+      return;
+    }
     const R = this.R;
     if (R) {
       const k = Math.min(1, this.deathT * 2.4);
@@ -387,6 +421,7 @@ export class Enemy {
     this.root.rotation.y = this.yaw;
     if (this.tele && this.teleFollow) { this.tele.group.position.set(this.pos.x, 0.04, this.pos.z); this.tele.group.rotation.y = this.yaw; }
     if (this.type === 'cube') return this.animateCube(dt, sp);
+    if (this.anim) return this.animateGlb(dt, sp);
     const P = this.pose, R = this.R, d = this.def;
     P.walk = this.walkPhase;
     P.amt = clamp(sp / 4, 0, 1.2);
@@ -447,6 +482,30 @@ export class Enemy {
     poseHumanoid(R, P, dt);
     // tremblement à l'impact
     if (this.flash > 0) this.root.position.x += Math.sin(G.time * 90) * 0.04;
+  }
+
+  animateGlb(dt, sp) {
+    const A = this.anim, d = this.def;
+    const key = this.state + ':' + Math.round((G.time - this.stateT) * 100);
+    if (d.ranged) {
+      if (this.state === 'windup') A.play('2H_Ranged_Aiming', { fade: 0.15 });
+      else if (this.state === 'strike' || (this.state === 'recover' && this.stateT < 0.4)) A.play('2H_Ranged_Shoot', { loop: false, fade: 0.05, key: 'shot' + Math.round((G.time - this.stateT) * 10) });
+      else this.locomotion(sp);
+    } else if (this.state === 'windup' || this.state === 'strike' || (this.state === 'recover' && this.stateT < 0.5)) {
+      // l'impact du clip (~45 %) tombe à la fin de la préparation
+      const name = '1H_Melee_Attack_Chop';
+      if (this.state === 'windup') A.play(name, { loop: false, fade: 0.08, speed: (A.duration(name) * 0.45) / d.windup, key });
+    } else if (this.state === 'stagger') {
+      A.play(this.staggerDur > 0.5 ? 'Hit_B' : 'Hit_A', { loop: false, fade: 0.05, speed: 1.3, key });
+    } else this.locomotion(sp);
+    A.update(dt);
+    if (this.flash > 0) this.root.position.x += Math.sin(G.time * 90) * 0.04;
+  }
+  locomotion(sp) {
+    const A = this.anim;
+    if (sp > 2.6) A.play('Running_A', { fade: 0.2, speed: sp / 5.5 });
+    else if (sp > 0.3) A.play('Walking_D_Skeletons', { fade: 0.2, speed: Math.max(0.6, sp / 1.8) });
+    else A.play(this.aware ? 'Idle_Combat' : 'Idle', { fade: 0.3 });
   }
 
   animateCube(dt, sp) {
