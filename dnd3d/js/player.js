@@ -213,8 +213,16 @@ export class Player {
   }
 
   // --- visée
+  // direction de référence : la caméra sur PC, l'orientation du héros sur écran tactile
+  get aimYaw() { return G.touch ? this.yaw : G.cam.yaw; }
   findTarget(range, maxAngle, list = G.enemies) {
-    const y = G.cam.yaw, fx = Math.sin(y), fz = Math.cos(y);
+    const t = this.findTargetDir(range, maxAngle, list);
+    // sur téléphone : à défaut d'ennemi devant, viser le plus proche tout autour
+    if (!t && G.touch) return this.findTargetDir(Math.min(range, 9), Math.PI, list);
+    return t;
+  }
+  findTargetDir(range, maxAngle, list) {
+    const y = this.aimYaw, fx = Math.sin(y), fz = Math.cos(y);
     let best = null, bs = 1e9;
     for (const e of list) {
       if (!e.alive) continue;
@@ -232,7 +240,7 @@ export class Player {
   }
   faceAim(range, ang) {
     const e = this.findTarget(range, ang);
-    this.yaw = e ? Math.atan2(e.pos.x - this.pos.x, e.pos.z - this.pos.z) : G.cam.yaw;
+    this.yaw = e ? Math.atan2(e.pos.x - this.pos.x, e.pos.z - this.pos.z) : this.aimYaw;
     return e;
   }
   aimDir(e, from) {
@@ -240,8 +248,8 @@ export class Player {
       const p = e.aimPoint();
       return p.sub(from).normalize();
     }
-    const y = G.cam.yaw;
-    const pitch = clamp(-(G.cam.pitch - 0.38) * 0.5, -0.25, 0.25);
+    const y = this.aimYaw;
+    const pitch = G.touch ? 0 : clamp(-(G.cam.pitch - 0.38) * 0.5, -0.25, 0.25);
     return new V(Math.sin(y) * Math.cos(pitch), Math.sin(pitch), Math.cos(y) * Math.cos(pitch));
   }
 
@@ -337,7 +345,7 @@ export class Player {
     // orientation
     this.speedNow = Math.hypot(this.vel.x, this.vel.z);
     if (this.state === 'free') {
-      if (this.blocking) this.yaw = dampAngle(this.yaw, G.cam.yaw, 16, dt);
+      if (this.blocking && !G.touch) this.yaw = dampAngle(this.yaw, G.cam.yaw, 16, dt);
       else if (this.speedNow > 0.5) this.yaw = dampAngle(this.yaw, Math.atan2(this.vel.x, this.vel.z), 12, dt);
     } else if (this.state === 'roll') this.yaw = dampAngle(this.yaw, Math.atan2(this.rollDir.x, this.rollDir.z), 25, dt);
 
@@ -700,7 +708,7 @@ export class Player {
       const dir = new V(e.pos.x - o.x, 0, e.pos.z - o.z).normalize();
       playerAttack(e, { save: { dc: this.spellDC }, dice: [[2, 8, this.mainMod]], mult: 1 + this.bonus.spell, dir, knock: 12, source: 'spell', label: 'Prout dévastateur' });
     }
-    const y = G.cam.yaw;
+    const y = this.aimYaw;
     this.rollDir.set(Math.sin(y), 0, Math.cos(y));
     this.state = 'roll';
     this.stateT = 0;
@@ -745,10 +753,11 @@ export class Player {
         else this.pos.copy(e.pos).addScaledVector(new V(this.pos.x - e.pos.x, 0, this.pos.z - e.pos.z).normalize(), e.radius + 0.9);
         this.yaw = Math.atan2(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
       } else {
-        const d = new V(Math.sin(G.cam.yaw), 0, Math.cos(G.cam.yaw));
+        const ay = this.aimYaw;
+        const d = new V(Math.sin(ay), 0, Math.cos(ay));
         const dist = Math.min(7, G.dungeon.ray(this.pos.x, this.pos.z, d.x, d.z, 7));
         this.pos.addScaledVector(d, Math.max(0, dist - 0.6));
-        this.yaw = G.cam.yaw;
+        this.yaw = ay;
       }
       this.collide();
       G.fx.norm.emit({ x: this.pos.x, y: 1, z: this.pos.z, count: 30, spread: 0.6, vel: 1.2, life: 0.9, size: 0.7, size1: 1.6, color: [0.05, 0.05, 0.08], alpha: 0.7 });
