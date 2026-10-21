@@ -321,6 +321,103 @@ export class Trail {
   }
 }
 
+// ------------------------------------------------------------------ Décalcomanies au sol
+// taches et brûlures plaquées sur le sol, qui s'estompent avec le temps
+function decalTexture(kind) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.translate(64, 64);
+  if (kind === 'scorch') {
+    const grd = g.createRadialGradient(0, 0, 4, 0, 0, 62);
+    grd.addColorStop(0, 'rgba(0,0,0,0.95)');
+    grd.addColorStop(0.55, 'rgba(10,6,4,0.75)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    for (let i = 0; i <= 40; i++) {
+      const a = (i / 40) * Math.PI * 2, r = 46 + Math.random() * 16;
+      i ? g.lineTo(Math.cos(a) * r, Math.sin(a) * r) : g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.fill();
+  } else {
+    g.fillStyle = '#fff';
+    for (let i = 0; i < 7; i++) {
+      g.beginPath();
+      g.arc(rnd(-16, 16), rnd(-16, 16), rnd(12, 24), 0, Math.PI * 2);
+      g.fill();
+    }
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2, r = rnd(28, 58);
+      g.beginPath();
+      g.arc(Math.cos(a) * r, Math.sin(a) * r, rnd(2, 6), 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const DECAL_KINDS = {
+  scorch: { color: 0xffffff, rough: 1, tex: 'scorch' },
+  blood: { color: 0x5a0606, rough: 0.25, tex: 'splat' },
+  slime: { color: 0x3c9a2a, rough: 0.15, tex: 'splat' },
+  vomit: { color: 0x9a8a1c, rough: 0.2, tex: 'splat' },
+  snot: { color: 0x6aa83a, rough: 0.15, tex: 'splat' },
+  gas: { color: 0x4a5a18, rough: 0.9, tex: 'scorch' },
+};
+
+export class Decals {
+  constructor(scene, max = 70) {
+    this.scene = scene;
+    this.max = max;
+    this.list = [];
+    this.geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    this.tex = {};
+  }
+  add(x, z, kind = 'blood', size = 1.2) {
+    const D = G.dungeon;
+    if (!D || !D.passable(D.ci(x), D.ci(z))) return;
+    const k = DECAL_KINDS[kind];
+    if (!this.tex[k.tex]) this.tex[k.tex] = decalTexture(k.tex);
+    let d = this.list.length >= this.max ? this.list.shift() : null;
+    if (!d) {
+      const mat = new THREE.MeshStandardMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      d = { mesh: new THREE.Mesh(this.geo, mat) };
+      d.mesh.receiveShadow = true;
+      d.mesh.renderOrder = 2;
+    }
+    const m = d.mesh.material;
+    m.map = this.tex[k.tex];
+    m.color.set(k.color);
+    m.roughness = k.rough;
+    m.opacity = kind === 'gas' ? 0.55 : 0.92;
+    m.needsUpdate = true;
+    d.base = m.opacity;
+    d.t = 0;
+    d.life = kind === 'gas' ? 12 : 45;
+    d.mesh.position.set(x, 0.015 + this.list.length * 0.0002, z);
+    d.mesh.rotation.y = Math.random() * Math.PI * 2;
+    d.mesh.scale.set(size * rnd(0.85, 1.15), 1, size * rnd(0.85, 1.15));
+    this.scene.add(d.mesh);
+    this.list.push(d);
+  }
+  update(dt) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const d = this.list[i];
+      d.t += dt;
+      const fade = clamp((d.life - d.t) / 5, 0, 1);
+      d.mesh.material.opacity = d.base * fade;
+      if (d.t >= d.life) { this.scene.remove(d.mesh); this.list.splice(i, 1); }
+    }
+  }
+  clear() {
+    for (const d of this.list) this.scene.remove(d.mesh);
+    this.list.length = 0;
+  }
+}
+
 // ------------------------------------------------------------------ Gestionnaire global
 export class FX {
   constructor(scene) {
@@ -334,6 +431,7 @@ export class FX {
     this.floaters = [];
     this.floatLayer = document.getElementById('floaters');
     this.floatPool = [];
+    this.decals = new Decals(scene);
     this._v = new THREE.Vector3();
   }
   setScale(h, fov) {
@@ -403,7 +501,10 @@ export class FX {
     }
     root.parent && root.parent.remove(root);
   }
+  // tache ou brûlure au sol
+  decal(x, z, kind, size) { this.decals.add(x, z, kind, size); }
   update(dt, camera) {
+    this.decals.update(dt);
     this.add.update(dt);
     this.norm.update(dt);
     for (let i = this.telegraphs.length - 1; i >= 0; i--) {
@@ -460,6 +561,7 @@ export class FX {
     }
   }
   clearAll() {
+    this.decals.clear();
     this.add.clear();
     this.norm.clear();
     for (const t of this.telegraphs) t.remove();

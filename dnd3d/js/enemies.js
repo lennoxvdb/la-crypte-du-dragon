@@ -5,6 +5,7 @@ import { buildSkeleton, buildGoblin, buildOgre, buildCube, buildDragon, poseHuma
 import { Projectile, explode } from './combat.js';
 import { Telegraph } from './fx.js';
 import { hasAssets, createCharacter } from './assets.js';
+import { FxSet } from './shaderfx.js';
 import { roll, rnd, rndInt, clamp, damp, dampAngle, wrapAngle, lerp } from './util.js';
 
 const V = THREE.Vector3;
@@ -89,6 +90,7 @@ export class Enemy {
         this.mats.push({ m: o.material, e: o.material.emissive.clone(), i: o.material.emissiveIntensity });
       }
     });
+    this.fx = new FxSet(this.root);
     this.pose = {};
   }
 
@@ -152,6 +154,9 @@ export class Enemy {
       }
     }
     G.audio.play(this.kind === 'bone' ? 'bone' : this.kind === 'slime' ? 'slime' : 'hit', this.pos, { crit: info.crit });
+    if (this.kind !== 'bone' && Math.random() < 0.45) {
+      G.fx.decal(this.pos.x + rnd(-0.6, 0.6), this.pos.z + rnd(-0.6, 0.6), this.kind === 'slime' ? 'slime' : 'blood', rnd(0.5, 1.0) * (this.radius > 0.8 ? 1.6 : 1));
+    }
     if (this.hp <= 0) this.die(info);
   }
 
@@ -180,6 +185,7 @@ export class Enemy {
       this.removed = true;
     } else if (this.kind === 'slime') {
       G.fx.blood(_a.set(this.pos.x, 1.2, this.pos.z), 50, [0.25, 0.85, 0.35]);
+      G.fx.decal(this.pos.x, this.pos.z, 'slime', 3.2);
       G.fx.add.emit({ x: this.pos.x, y: 1, z: this.pos.z, count: 30, spread: 1, vel: 3, life: 0.6, size: 0.4, size1: 0.05, color: [0.4, 1.6, 0.5] });
       G.fx.shatter(this.model.body, dir);
       G.scene.remove(this.root);
@@ -187,6 +193,7 @@ export class Enemy {
       G.audio.play('splat', this.pos);
     } else {
       G.audio.play('enemyDie', this.pos, { pitch: this.type === 'ogre' ? 0.6 : 1.2 });
+      G.fx.decal(this.pos.x, this.pos.z, 'blood', this.type === 'ogre' ? 2.6 : 1.5);
     }
   }
 
@@ -200,8 +207,14 @@ export class Enemy {
     }
   }
 
+  updateRim(dt) {
+    const want = this.alive && G.target === this ? 0.75 + Math.sin(G.time * 7) * 0.3 : 0;
+    this.fx.setRim(this.fx.rim + (want - this.fx.rim) * Math.min(1, dt * 12));
+  }
+
   update(dt) {
     const P = G.player, D = G.dungeon;
+    this.updateRim(dt);
     this.flash -= dt;
     this.sneakCD -= dt;
     this.setFlash();
@@ -402,8 +415,8 @@ export class Enemy {
     if (this.removed) return;
     if (this.anim) {
       this.anim.update(dt);
-      if (this.deathT > 2.4) this.root.position.y -= dt * 0.5;
-      if (this.deathT > 4.5) { G.scene.remove(this.root); this.removed = true; }
+      if (this.deathT > 1.7) this.fx.setDissolve(Math.min(1, (this.deathT - 1.7) / 1.3));
+      if (this.deathT > 3.05) { G.scene.remove(this.root); this.removed = true; }
       return;
     }
     const R = this.R;
@@ -411,9 +424,9 @@ export class Enemy {
       const k = Math.min(1, this.deathT * 2.4);
       R.body.rotation.x = -k * Math.PI / 2 * 0.95;
       R.body.position.y = 0.15 * k;
-      if (this.deathT > 2.2) this.root.position.y -= dt * 0.6;
     }
-    if (this.deathT > 4) { G.scene.remove(this.root); this.removed = true; }
+    if (this.deathT > 1.2) this.fx.setDissolve(Math.min(1, (this.deathT - 1.2) / 1.2));
+    if (this.deathT > 2.45) { G.scene.remove(this.root); this.removed = true; }
   }
 
   animate(dt, sp) {
@@ -558,6 +571,8 @@ export class Dragon {
     this.root.traverse((o) => {
       if (o.isMesh && !seen.has(o.material)) { seen.add(o.material); this.mats.push({ m: o.material, e: o.material.emissive.clone(), i: o.material.emissiveIntensity }); }
     });
+    this.fx = new FxSet(this.root);
+    this.fx.setRim(0, new THREE.Color(1, 0.6, 0.2));
     this.anim = {
       t: 0, headPos: new V(0, 1.1, 5.2), headPitch: 0.2, jaw: 0, glow: 0, tailSwing: 0, walk: 0, phase: 0,
       wingSpread: 0, flap: 0, lift: -1.1, bodyPitch: 0.05,
@@ -672,6 +687,8 @@ export class Dragon {
 
   update(dt) {
     const P = G.player;
+    const wantRim = this.alive && G.target === this ? 0.5 + Math.sin(G.time * 7) * 0.2 : 0;
+    this.fx.setRim(this.fx.rim + (wantRim - this.fx.rim) * Math.min(1, dt * 10));
     this.flash -= dt;
     const f = this.flash > 0 ? 1 : 0;
     if (f !== this._lf) {
@@ -916,6 +933,8 @@ export class Dragon {
     this.tick -= dt;
     if (this.tick <= 0) {
       this.tick = 0.3;
+      const bd = rnd(4, 15), ba = rnd(-0.35, 0.35);
+      G.fx.decal(this.breathOrigin.x + Math.sin(this.breathYaw + ba) * bd, this.breathOrigin.z + Math.cos(this.breathYaw + ba) * bd, 'scorch', rnd(1.5, 2.6));
       const ox = P.pos.x - this.breathOrigin.x, oz = P.pos.z - this.breathOrigin.z;
       const d = Math.hypot(ox, oz);
       const ang = Math.acos(clamp((ox * fx + oz * fz) / (d || 1), -1, 1));

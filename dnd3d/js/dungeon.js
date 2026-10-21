@@ -80,6 +80,7 @@ export function initDungeonAssets() {
     lavaMat,
     wood: new THREE.MeshStandardMaterial({ color: 0x6a4426, roughness: 0.82 }),
     iron: new THREE.MeshStandardMaterial({ color: 0x3c3b3e, roughness: 0.45, metalness: 0.85 }),
+    wax: new THREE.MeshStandardMaterial({ color: 0xe9dcc0, roughness: 0.55, emissive: 0x3a1a04, emissiveIntensity: 0.6 }),
     gold: new THREE.MeshStandardMaterial({ color: 0xe0b050, roughness: 0.25, metalness: 1.0, emissive: 0x3a2200, emissiveIntensity: 0.4 }),
     bone: new THREE.MeshStandardMaterial({ color: 0xd6ceb6, roughness: 0.75 }),
     coal: new THREE.MeshStandardMaterial({ color: 0x110805, emissive: 0xff3a08, emissiveIntensity: 1.6, roughness: 1 }),
@@ -106,6 +107,8 @@ export function initDungeonAssets() {
       rod: new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6).rotateZ(Math.PI / 2),
       cobweb: new THREE.PlaneGeometry(3.4, 2.6),
       coin: new THREE.CylinderGeometry(0.1, 0.1, 0.02, 10),
+      candle: new THREE.CylinderGeometry(0.055, 0.065, 1, 8).translate(0, 0.5, 0),
+      link: new THREE.TorusGeometry(0.09, 0.022, 6, 10),
     },
   };
   return A;
@@ -157,7 +160,7 @@ export class Dungeon {
     this.torches = [];
     this.banners = [];
     this.cobwebs = [];
-    this.props = { barrels: [], crates: [], skulls: [], bones: [], rocks: [], pillars: [], braziers: [] };
+    this.props = { barrels: [], crates: [], skulls: [], bones: [], rocks: [], pillars: [], braziers: [], candles: [], chains: [] };
     this.chestSpots = [];
     this.trapSpots = [];
     this.shrineSpot = null;
@@ -352,12 +355,35 @@ export class Dungeon {
           }
         }
         // éboulis et ossements épars
-        for (let k = 0; k < 4; k++) {
+        for (let k = 0; k < 8; k++) {
           const i = rm.x + Math.floor(r() * rm.w), j = rm.y + Math.floor(r() * rm.h);
           if (this.get(i, j) !== T.FLOOR) continue;
           const x = this.wx(i) + (r() - 0.5) * 2, z = this.wx(j) + (r() - 0.5) * 2;
-          if (r() < 0.5) this.props.rocks.push({ x, z, rot: r() * 6, s: 0.5 + r() * 0.9 });
-          else this.props.bones.push({ x, z, rot: r() * 6 });
+          const roll = r();
+          if (roll < 0.4) this.props.rocks.push({ x, z, rot: r() * 6, s: 0.5 + r() * 0.9 });
+          else if (roll < 0.85) this.props.bones.push({ x, z, rot: r() * 6 });
+          else this.props.skulls.push({ x, z, rot: r() * 6 });
+        }
+        // grappes de bougies le long des murs
+        for (let k = 0, tries = 0; k < 2 && tries < 20; tries++) {
+          const s = sides(rm)[Math.floor(r() * 4)];
+          const [i, j] = s.cells[Math.floor(r() * s.cells.length)];
+          if (this.get(i, j) !== T.FLOOR || this.solid[j * W + i] || !isWall(i + s.d[0], j + s.d[1])) continue;
+          const cx = this.wx(i) + s.d[0] * 1.05, cz = this.wx(j) + s.d[1] * 1.05;
+          const n = 3 + Math.floor(r() * 3);
+          for (let c = 0; c < n; c++) {
+            const a = r() * Math.PI * 2, rr = r() * 0.38;
+            this.props.candles.push({ x: cx + Math.cos(a) * rr, z: cz + Math.sin(a) * rr, h: 0.18 + r() * 0.32 });
+          }
+          k++;
+        }
+        // chaînes suspendues au plafond
+        if (rm.w >= 6 && rm.h >= 6) {
+          for (let k = 0; k < 2; k++) {
+            const i = rm.x + 1 + Math.floor(r() * (rm.w - 2)), j = rm.y + 1 + Math.floor(r() * (rm.h - 2));
+            if (this.get(i, j) !== T.FLOOR) continue;
+            this.props.chains.push({ x: this.wx(i) + (r() - 0.5) * 2, z: this.wx(j) + (r() - 0.5) * 2, len: 2.2 + r() * 2.2, yaw: r() * Math.PI });
+          }
         }
       }
     }
@@ -439,6 +465,12 @@ export class Dungeon {
     for (const [i, j] of [[24, 36], [35, 36], [16, 21], [44, 21], [26, 9], [33, 9]]) this.addBrazier(this.wx(i), this.wx(j), 1.25);
     for (const [i, j] of [[26, 47], [33, 47], [26, 53], [33, 53]]) this.addBrazier(this.wx(i), this.wx(j), 0.9);
     this.addLavaLights();
+    // longues chaînes dans le grand hall
+    for (let k = 0; k < 10; k++) {
+      const x = (hall.x + 3 + this.rng() * (hall.w - 6)) * CELL, z = (hall.y + 3 + this.rng() * (hall.h - 6)) * CELL;
+      if (this.get(this.ci(x), this.ci(z)) === T.WALL) continue;
+      this.props.chains.push({ x, z, len: 4 + this.rng() * 5, yaw: this.rng() * Math.PI });
+    }
     // ossements d'aventuriers malchanceux
     for (let k = 0; k < 30; k++) {
       const x = (hall.x + 1 + this.rng() * (hall.w - 2)) * CELL, z = (hall.y + 1 + this.rng() * (hall.h - 2)) * CELL;
@@ -563,6 +595,13 @@ export class Dungeon {
     const bm = a.banners[this.cfg.banner] || a.banners.red;
     this.inst(a.geo.banner, bm, this.banners, (o, b) => { o.position.set(b.x, 4.3, b.z); o.rotation.y = b.yaw; o.translateZ(0.02); }, false);
     this.inst(a.geo.rod, a.iron, this.banners, (o, b) => { o.position.set(b.x, 5.65, b.z); o.rotation.y = b.yaw; o.translateZ(0.12); }, false);
+    this.inst(a.geo.candle, a.wax, P.candles, (o, c) => { o.position.set(c.x, 0, c.z); o.scale.set(1, c.h, 1); }, false);
+    const links = [];
+    for (const ch of P.chains) {
+      const n = Math.floor(ch.len / 0.15);
+      for (let k = 0; k < n; k++) links.push({ x: ch.x, z: ch.z, y: this.wallH - 0.08 - k * 0.15, yaw: ch.yaw + (k % 2) * Math.PI / 2 });
+    }
+    this.inst(a.geo.link, a.iron, links, (o, l) => { o.position.set(l.x, l.y, l.z); o.rotation.set(0, l.yaw, Math.PI / 2); }, false);
     this.inst(a.geo.cobweb, a.cobweb, this.cobwebs, (o, c) => { o.position.set(c.x, this.wallH - 1.25, c.z); o.rotation.y = c.yaw; o.translateZ(-0.6); o.rotateX(-0.45); }, false);
 
     // flammes
@@ -573,6 +612,7 @@ export class Dungeon {
       flames.push({ x: t.x + v.x, y: 3.4 + v.y, z: t.z + v.z, s: 0.75 });
     }
     for (const b of P.braziers) flames.push({ x: b.x, y: 1.35 * b.s, z: b.z, s: 2.2 * b.s });
+    for (const c of P.candles) flames.push({ x: c.x, y: c.h + 0.01, z: c.z, s: 0.17 });
     const c = this.cfg.torch;
     const colA = [c[0] * 1.0, c[1] * 0.45, c[2] * 0.2];
     const colB = [Math.min(1, c[0] * 1.1 + 0.1), Math.min(1, c[1] * 1.4 + 0.25), Math.min(1, c[2] * 1.6 + 0.2)];

@@ -48,24 +48,22 @@ export class AudioSys {
     return b;
   }
   // sortie spatialisée : gain + panoramique selon la position monde
+  // sortie d'un son : positionné en 3D (HRTF) s'il a une position dans le monde
   out(pos, vol = 1, revAmt = 1) {
     const ctx = this.ctx;
     const g = ctx.createGain();
-    let v = vol, pan = 0;
-    if (pos && G.camera) {
-      const cam = G.camera.position;
-      const dx = pos.x - cam.x, dz = pos.z - cam.z;
-      const d = Math.hypot(dx, dz);
-      v *= 1 / (1 + Math.max(0, d - 4) * 0.12);
-      const y = G.cam.yaw;
-      const rx = -Math.cos(y), rz = Math.sin(y);
-      pan = Math.max(-1, Math.min(1, (dx * rx + dz * rz) / Math.max(4, d)));
-    }
-    g.gain.value = v;
+    g.gain.value = vol;
     let node = g;
-    if (ctx.createStereoPanner) {
-      const p = ctx.createStereoPanner();
-      p.pan.value = pan * 0.8;
+    if (pos && ctx.createPanner) {
+      const p = ctx.createPanner();
+      p.panningModel = 'HRTF';
+      p.distanceModel = 'inverse';
+      p.refDistance = 4;
+      p.rolloffFactor = 0.9;
+      p.maxDistance = 80;
+      const y = pos.y !== undefined ? pos.y + 1 : 1.2;
+      if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = y; p.positionZ.value = pos.z; }
+      else p.setPosition(pos.x, y, pos.z);
       g.connect(p);
       node = p;
     }
@@ -73,9 +71,31 @@ export class AudioSys {
     if (revAmt > 0) {
       const rg = ctx.createGain();
       rg.gain.value = revAmt;
-      node.connect(rg).connect(this.rev);
+      g.connect(rg).connect(this.rev);
     }
     return g;
+  }
+
+  // l'auditeur suit la caméra (position et orientation)
+  updateListener(cam) {
+    if (!this.ctx) return;
+    const L = this.ctx.listener;
+    const p = cam.position;
+    const f = this._f || (this._f = cam.getWorldDirection(cam.position.clone()));
+    cam.getWorldDirection(f);
+    if (L.positionX) {
+      const t = this.ctx.currentTime;
+      L.positionX.setTargetAtTime(p.x, t, 0.02);
+      L.positionY.setTargetAtTime(p.y, t, 0.02);
+      L.positionZ.setTargetAtTime(p.z, t, 0.02);
+      L.forwardX.setTargetAtTime(f.x, t, 0.02);
+      L.forwardY.setTargetAtTime(f.y, t, 0.02);
+      L.forwardZ.setTargetAtTime(f.z, t, 0.02);
+      L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+    } else {
+      L.setPosition(p.x, p.y, p.z);
+      L.setOrientation(f.x, f.y, f.z, 0, 1, 0);
+    }
   }
   env(param, t0, a, peak, dcy, end = 0.0001) {
     param.setValueAtTime(0.0001, t0);

@@ -187,6 +187,7 @@ export class Projectile {
 // ---------------------------------------------------------------- Explosion
 export function explode(pos, radius, color = 'fire') {
   G.fx.fireBurst(pos, 70, radius / 3.2);
+  G.fx.decal(pos.x, pos.z, 'scorch', radius * 0.95);
   G.fx.flash(pos, [1, 0.5, 0.15], 70, radius * 4, 0.45);
   G.audio.play('explode', pos);
   const d = G.player ? G.player.pos.distanceTo(pos) : 10;

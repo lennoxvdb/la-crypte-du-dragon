@@ -4,6 +4,7 @@ import { G } from './state.js';
 import { buildHero, poseHumanoid, animateCape } from './models.js';
 import { hasAssets, createCharacter, weaponMarkers } from './assets.js';
 import { Trail, Telegraph } from './fx.js';
+import { FxSet } from './shaderfx.js';
 import { Projectile, playerAttack, explode } from './combat.js';
 import { clamp, damp, dampAngle, roll, die, mod, fmtMod, rnd, lerp } from './util.js';
 
@@ -206,6 +207,9 @@ export class Player {
     this.model = hasAssets() && GLB_HEROES[clsKey] ? buildGlbHero(clsKey) : buildHero(clsKey);
     this.R = this.model.R;
     G.scene.add(this.R.root);
+    this.fx = new FxSet(this.R.root);
+    this.fx.setRim(0, new THREE.Color(1, 0.12, 0.05));
+    this.hurtGlow = 0;
     const tc = clsKey === 'magicien' ? [1.4, 0.6, 0.15] : [0.85, 0.9, 1.15];
     this.trail = new Trail(tc);
     G.scene.add(this.trail.mesh);
@@ -636,10 +640,11 @@ export class Player {
         onHit: (e, p) => {
           playerAttack(e, { atk: this.atk, dice: [[1, 10, this.mainMod + this.bonus.dmg]], critMin: this.critMin, mult: 1 + this.bonus.spell, dir: p.vel.clone().normalize(), knock: 2, source: 'spell', label: 'Trait de feu' });
           G.fx.fireBurst(p.pos, 14, 0.35);
+          if (p.pos.y < 1.6) G.fx.decal(p.pos.x, p.pos.z, 'scorch', 0.8);
           G.fx.flash(p.pos, [1, 0.45, 0.12], 25, 8, 0.2);
           G.audio.play('fireHit', p.pos);
         },
-        onWall: (p) => { G.fx.fireBurst(p.pos, 10, 0.3); G.audio.play('fireHit', p.pos); },
+        onWall: (p) => { G.fx.fireBurst(p.pos, 10, 0.3); if (p.pos.y < 0.6) G.fx.decal(p.pos.x, p.pos.z, 'scorch', 0.7); G.audio.play('fireHit', p.pos); },
       });
     } else if (kind === 'fireball') {
       const dir = this.aimDir(tgt, from);
@@ -674,12 +679,17 @@ export class Player {
         onHit: (e, p) => {
           playerAttack(e, { atk: this.atk, dice: [[1, 6, this.mainMod + this.bonus.dmg]], critMin: this.critMin, dir: p.vel.clone().normalize(), knock: 2, source: 'ranged', label: 'Crotte de nez' });
           G.fx.blood(p.pos, 10, [0.45, 0.8, 0.2]);
+          G.fx.decal(e.pos.x + rnd(-0.4, 0.4), e.pos.z + rnd(-0.4, 0.4), 'snot', 0.55);
           G.audio.play('splatSmall', p.pos);
         },
-        onWall: (p) => { G.fx.blood(p.pos, 8, [0.45, 0.8, 0.2]); G.audio.play('splatSmall', p.pos); },
+        onWall: (p) => { G.fx.blood(p.pos, 8, [0.45, 0.8, 0.2]); G.fx.decal(p.pos.x, p.pos.z, 'snot', 0.5); G.audio.play('splatSmall', p.pos); },
       });
     } else if (kind === 'vomit') {
       const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+      for (let i = 0; i < 4; i++) {
+        const d = 1.4 + i * 1.1, side = rnd(-0.5, 0.5) * (0.4 + i * 0.3);
+        G.fx.decal(this.pos.x + fx * d + fz * side, this.pos.z + fz * d - fx * side, 'vomit', 0.7 + i * 0.25);
+      }
       for (const e of G.enemies) {
         if (!e.alive || !e.meleeCheck(this.pos, fx, fz, 5.5, 0.6)) continue;
         if (!G.dungeon.los(this.pos.x, this.pos.z, e.pos.x, e.pos.z)) continue;
@@ -725,6 +735,7 @@ export class Player {
     G.fx.norm.emit({ x: o.x, y: 0.6, z: o.z, count: 60, spread: 1.4, flat: true, vel: 5, velY: 0.25, life: 1.8, size: 1.1, size1: 3.4, color: [0.55, 0.72, 0.18], color1: [0.4, 0.5, 0.15], alpha: 0.5, drag: 2.2 });
     G.fx.add.emit({ x: o.x, y: 0.7, z: o.z, count: 30, spread: 0.6, vel: 7, life: 0.5, size: 0.3, size1: 0.05, color: [0.8, 1.6, 0.3] });
     new Telegraph({ x: o.x, z: o.z, radius, duration: 0.35, color: [0.5, 1.2, 0.2] });
+    G.fx.decal(o.x, o.z, 'gas', radius * 1.4);
     for (const e of G.enemies) {
       if (!e.alive || e.hitDistance(o) > radius) continue;
       if (!G.dungeon.los(o.x, o.z, e.pos.x, e.pos.z)) continue;
@@ -873,10 +884,12 @@ export class Player {
     this.hp -= dmg;
     G.fx.text(chest, `-${dmg}`, 'hurt', 1);
     G.fx.blood(chest, 8);
+    if (Math.random() < 0.5) G.fx.decal(this.pos.x + rnd(-0.5, 0.5), this.pos.z + rnd(-0.5, 0.5), 'blood', rnd(0.5, 0.9));
     G.damageFlash = Math.min(1, G.damageFlash + 0.35 + dmg / this.maxHp);
     G.shake = Math.max(G.shake, 0.2 + Math.min(0.4, dmg / 40));
     G.hitstop = Math.max(G.hitstop, 0.05);
     G.audio.play('hurt', this.pos);
+    this.hurtGlow = 1;
     this.iframes = 0.4;
     if (a.knock && a.attacker) {
       const dx = this.pos.x - a.attacker.pos.x, dz = this.pos.z - a.attacker.pos.z;
@@ -984,6 +997,10 @@ export class Player {
   }
 
   animate(dt) {
+    // lueur rouge quand on est touché, pulsation quand les PV sont bas
+    this.hurtGlow = Math.max(0, this.hurtGlow - dt * 3);
+    const low = this.alive && this.hp < this.maxHp * 0.25 ? (0.5 + Math.sin(G.time * 6) * 0.5) * 0.6 : 0;
+    this.fx.setRim(Math.max(this.hurtGlow * 2.2, low));
     if (this.R.glb) return this.animateGlb(dt);
     const R = this.R, P = this.pose;
     P.walk = this.walkPhase;

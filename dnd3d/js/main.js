@@ -27,7 +27,7 @@ const fxLights = [];
 const camTarget = new V();
 const orbPos = new V();
 let titleDragon = null;
-let flowT = 0, revealT = 0;
+let flowT = 0, revealT = 0, targetT = 0;
 
 const pref = (k, d) => { try { return localStorage.getItem('crypte_' + k) ?? d; } catch { return d; } };
 const setPref = (k, v) => { try { localStorage.setItem('crypte_' + k, v); } catch { /* stockage indisponible */ } };
@@ -220,6 +220,7 @@ function disposeWorld() {
   if (G.fx) G.fx.clearAll();
   if (G.dungeon) { G.dungeon.dispose(); G.dungeon = null; }
   G.boss = null;
+  G.target = null;
   if (G.keyLight) G.keyLight.intensity = 0;
   if (G.ui) G.ui.boss(null, null);
   if (G.audio) G.audio.bossMusic(false);
@@ -506,7 +507,7 @@ function setupTouch() {
 
 // ---------------------------------------------------------------- Mise à jour (appli Android)
 // Doit rester identique à versionName dans apk/android/app/build.gradle (vérifié par build-web.mjs).
-const APP_VERSION = '1.1';
+const APP_VERSION = '1.2';
 const REPO = 'lennoxvdb/la-crypte-du-dragon';
 let updateUrl = null;
 function isNewer(a, b) {
@@ -702,6 +703,13 @@ function updateGame(dt) {
   if (G.hitstop > 0) { G.hitstop -= dt; gdt = dt * 0.12; }
   const P = G.player, D = G.dungeon;
   P.update(gdt);
+  // ennemi visé (contour lumineux)
+  targetT -= dt;
+  if (targetT <= 0) {
+    targetT = 0.12;
+    const ranged = P.clsKey === 'magicien' || P.clsKey === 'lucas';
+    G.target = P.alive ? P.findTarget(ranged ? 22 : 6, ranged ? 0.3 : 0.9) : null;
+  }
   flowT -= dt;
   if (flowT <= 0) { flowT = 0.25; D.computeFlow(P.pos.x, P.pos.z); }
   for (const e of G.enemies) e.update(gdt);
@@ -777,6 +785,7 @@ function tick(now) {
   grade.uniforms.uDamage.value = G.damageFlash;
   const P = G.player;
   grade.uniforms.uLowHp.value = P && G.state !== 'title' ? smoothstep(0.35, 0.08, P.hp / P.maxHp) : 0;
+  if (G.audio) G.audio.updateListener(G.camera);
   composer.render();
   I.pressed = {};
   I.clickL = I.clickR = false;
